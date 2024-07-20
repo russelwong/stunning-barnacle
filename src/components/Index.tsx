@@ -1,12 +1,18 @@
 import { useState } from 'react';
-import { Row, Col, Input, Button, Form, List } from 'antd';
-import { useOrdinals } from '../hooks/ordinals';
+import { Row, Col, Image, Input, Button, Form, List, Drawer, Typography, Divider } from 'antd';
+import { ArrowRightOutlined } from '@ant-design/icons';
+import { useOrdinals, useInscriptionsDetails, useInscriptionsContent } from '../hooks/ordinals';
+import { isImageMIMEType } from '../helpers/mime-validator';
+
+const { Title, Paragraph, Text } = Typography;
+
+const whiteText = { color: 'white' };
+const whiteTitle = { color: 'white', opacity: 0.7, fontSize: '0.9em' };
 
 export default function Index() {
     const [address, setAddress] = useState<string>('');
 
     const handleSearch = (payload: { bitcoinAddress: string }) => {
-        console.log(payload);
         setAddress(payload.bitcoinAddress);
     };
 
@@ -20,12 +26,12 @@ export default function Index() {
                         </Form.Item>
                     </Col>
                 </Row>
-                <Row gutter={16}>
-                    <Form.Item>
-                        <Col>
-                            <Button htmlType='submit' type="primary">Look up</Button>
-                        </Col>
-                    </Form.Item>
+                <Row gutter={24}>
+                    <Col span={24}>
+                        <Form.Item>
+                            <Button htmlType='submit' type="primary" block>Look up</Button>
+                        </Form.Item>
+                    </Col>
                 </Row>
             </Form>
 
@@ -35,9 +41,19 @@ export default function Index() {
 };
 
 function OrdinalList({ bitcoinAddress }: { bitcoinAddress: string }) {
+    const [isInscriptionDetailVisible, setIsInscriptionDetailVisible] = useState<boolean>(false);
+    const [inscription, setInscription] = useState<any>({});
     const { data } = useOrdinals(bitcoinAddress);
     const ordinalsData = data?.results || [];
-    console.log(data);
+
+    const handleInscriptionDetail = (payload: any) => {
+        setInscription(payload);
+        setIsInscriptionDetailVisible(true);
+    };
+
+    const handleCloseInscriptionDetail = () => {
+        setIsInscriptionDetailVisible(false);
+    }
 
     return (
         <>
@@ -47,26 +63,262 @@ function OrdinalList({ bitcoinAddress }: { bitcoinAddress: string }) {
                 dataSource={ordinalsData}
                 pagination={false}
                 footer={null}
+                style={{ color: 'white', width: '100%', textAlign: 'center' }}
                 renderItem={item => {
                     return item?.inscriptions?.map((inscription) => (
-                        <List.Item
-                            style={{
-                                backgroundColor: '#F4F6FC',
-                                borderRadius: '20px',
-                                width: '80%',
-                                margin: '1.5em auto 0 auto',
-                                padding: '1.5em'
-                            }}
-                        >
-                            <List.Item.Meta
-                                title={<h2>Inscriptions</h2>}
-                            />
-
-                            <p>{inscription.id}</p>
-                        </List.Item>
+                        <Row justify='center'>
+                            <List.Item
+                                id={inscription?.id}
+                                style={{
+                                    color: 'white',
+                                    width: '100%',
+                                    margin: '1.5em auto 0 auto',
+                                    padding: '1.5em'
+                                }}
+                            >
+                                <Col span={18}>
+                                    <Text style={{ width: '100%', color: 'white' }} >
+                                        Inscriptions {inscription.id}
+                                    </Text>
+                                </Col>
+                                <Col span={6}>
+                                    <Button
+                                        style={{ color: 'white' }}
+                                        type='link'
+                                        onClick={() => {
+                                            handleInscriptionDetail(inscription);
+                                        }}
+                                    >
+                                        <ArrowRightOutlined />
+                                    </Button>
+                                </Col>
+                            </List.Item>
+                        </Row>
                     ));
 
-                }} />
+                }}
+            />
+
+            <Drawer styles={{
+                body: {
+                    backgroundColor: '#1A1A1A',
+                    color: 'white',
+                },
+            }} title='Details' width={640} open={isInscriptionDetailVisible} placement="right" closable={false} onClose={handleCloseInscriptionDetail}>
+                <InscriptionDetail bitcoinAddress={bitcoinAddress} inscriptionId={inscription?.id} />
+            </Drawer>
         </>
     )
+}
+
+function InscriptionRawContent({ inscriptionId }: { inscriptionId: string }) {
+    const { data } = useInscriptionsContent(inscriptionId);
+
+    return (
+        <Paragraph style={whiteText}>
+            <pre>{JSON.stringify(data)}</pre>
+        </Paragraph>
+    );
+}
+
+function InscriptionDetail({ inscriptionId, bitcoinAddress }: { inscriptionId: string, bitcoinAddress: string }) {
+    const { data } = useInscriptionsDetails(bitcoinAddress, inscriptionId);
+
+    const getInscriptionContent = () => {
+        if (isImageMIMEType(data?.content_type)) {
+            return <Image src={`https://ord.xverse.app/content/${inscriptionId}`} />
+        }
+
+        return <InscriptionRawContent inscriptionId={inscriptionId} />
+    }
+
+    return (
+        <>
+            <Row>
+                <Col span={24}>
+                    {getInscriptionContent()}
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <Title style={whiteText} level={4}>Inscription {data?.number}</Title>
+                </Col>
+            </Row>
+
+            <Divider />
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Inscription ID' />
+                </Col>
+                <Col span={24}>
+                    <p>{data?.id}</p>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Owner Address' />
+                </Col>
+                <Col span={24}>
+                    <p>{data?.address}</p>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <Title style={whiteText} level={4}>Attributes</Title>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Output Value' />
+                </Col>
+                <Col span={24}>
+                    <Paragraph style={whiteText}>
+                        <pre>{data?.value}</pre>
+                    </Paragraph>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Content Type' />
+                </Col>
+                <Col span={24}>
+                    <Paragraph style={whiteText}>
+                        <pre>{data?.content_type}</pre>
+                    </Paragraph>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Content Length' />
+                </Col>
+                <Col span={24}>
+                    <Paragraph style={whiteText}>
+                        <pre>{data?.content_length}</pre>
+                    </Paragraph>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Location' />
+                </Col>
+                <Col span={24}>
+                    <Paragraph style={whiteText}>
+                        <pre>{data?.location}</pre>
+                    </Paragraph>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Genesis Transaction' />
+                </Col>
+                <Col span={24}>
+                    <Paragraph style={whiteText}>
+                        <pre>{data?.genesis_address}</pre>
+                    </Paragraph>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Genesis Block Height' />
+                </Col>
+                <Col span={24}>
+                    <Paragraph style={whiteText}>
+                        <pre>{data?.genesis_block_height}</pre>
+                    </Paragraph>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Genesis Block Hash' />
+                </Col>
+                <Col span={24}>
+                    <Paragraph style={whiteText}>
+                        <pre>{data?.genesis_block_hash}</pre>
+                    </Paragraph>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Genesis Transaction ID' />
+                </Col>
+                <Col span={24}>
+                    <Paragraph style={whiteText}>
+                        <pre>{data?.genesis_tx_id}</pre>
+                    </Paragraph>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Genesis Fee' />
+                </Col>
+                <Col span={24}>
+                    <Paragraph style={whiteText}>
+                        <pre>{data?.genesis_fee}</pre>
+                    </Paragraph>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Genesis Timestamp' />
+                </Col>
+                <Col span={24}>
+                    <Paragraph style={whiteText}>
+                        <pre>{data?.genesis_timestamp}</pre>
+                    </Paragraph>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Location' />
+                </Col>
+                <Col span={24}>
+                    <Paragraph style={whiteText}>
+                        <pre>{data?.location}</pre>
+                    </Paragraph>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Output' />
+                </Col>
+                <Col span={24}>
+                    <Paragraph style={whiteText}>
+                        <pre>{data?.output}</pre>
+                    </Paragraph>
+                </Col>
+            </Row>
+
+            <Row>
+                <Col span={24}>
+                    <InscriptionInputTitle title='Offset' />
+                </Col>
+                <Col span={24}>
+                    <Paragraph style={whiteText}>
+                        <pre>{data?.offset}</pre>
+                    </Paragraph>
+                </Col>
+            </Row>
+
+        </>
+    );
+}
+
+function InscriptionInputTitle({ title }: { title: string }) {
+    return <p style={whiteTitle}>{title}</p>;
 }

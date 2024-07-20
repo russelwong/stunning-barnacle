@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { Row, Col, Image, Input, Button, Form, List, Drawer, Typography, Divider } from 'antd';
+import React, { useState } from 'react';
+import Swal from 'sweetalert2';
+import { Row, Col, Image, Input, Button, Form, List, Drawer, Typography, Divider, Space } from 'antd';
 import { ArrowRightOutlined } from '@ant-design/icons';
+import { ReactSVG } from 'react-svg'
 import { useOrdinals, useInscriptionsDetails, useInscriptionsContent } from '../hooks/ordinals';
 import { isImageMIMEType } from '../helpers/mime-validator';
 
@@ -21,7 +23,7 @@ export default function Index() {
             <Form layout='vertical' onFinish={handleSearch}>
                 <Row gutter={16}>
                     <Col>
-                        <Form.Item label='Owner Bitcoin Address:' name='bitcoinAddress'>
+                        <Form.Item style={whiteText} label='Owner Bitcoin Address:' name='bitcoinAddress'>
                             <Input />
                         </Form.Item>
                     </Col>
@@ -43,8 +45,13 @@ export default function Index() {
 function OrdinalList({ bitcoinAddress }: { bitcoinAddress: string }) {
     const [isInscriptionDetailVisible, setIsInscriptionDetailVisible] = useState<boolean>(false);
     const [inscription, setInscription] = useState<any>({});
-    const { data } = useOrdinals(bitcoinAddress);
-    const ordinalsData = data?.results || [];
+    const {
+        data,
+        error,
+        isFetching,
+        fetchNextPage,
+        hasNextPage,
+    } = useOrdinals(bitcoinAddress);
 
     const handleInscriptionDetail = (payload: any) => {
         setInscription(payload);
@@ -55,49 +62,78 @@ function OrdinalList({ bitcoinAddress }: { bitcoinAddress: string }) {
         setIsInscriptionDetailVisible(false);
     }
 
+    const onLoadMore = () => {
+        fetchNextPage();
+    };
+
+    if (error) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: 'Something went wrong!',
+        });
+    }
+
     return (
         <>
             <p>Results</p>
-            <List
-                itemLayout='horizontal'
-                dataSource={ordinalsData}
-                pagination={false}
-                footer={null}
-                style={{ color: 'white', width: '100%', textAlign: 'center' }}
-                renderItem={item => {
-                    return item?.inscriptions?.map((inscription) => (
-                        <Row justify='center'>
-                            <List.Item
-                                id={inscription?.id}
-                                style={{
-                                    color: 'white',
-                                    width: '100%',
-                                    margin: '1.5em auto 0 auto',
-                                    padding: '1.5em'
-                                }}
-                            >
-                                <Col span={18}>
-                                    <Text style={{ width: '100%', color: 'white' }} >
-                                        Inscriptions {inscription.id}
-                                    </Text>
-                                </Col>
-                                <Col span={6}>
-                                    <Button
-                                        style={{ color: 'white' }}
-                                        type='link'
-                                        onClick={() => {
-                                            handleInscriptionDetail(inscription);
-                                        }}
-                                    >
-                                        <ArrowRightOutlined />
-                                    </Button>
-                                </Col>
-                            </List.Item>
-                        </Row>
-                    ));
+            {
+                data?.pages?.map((ordinalsData) => (
+                    <React.Fragment key={ordinalsData.offset}>
+                        <List
+                            loading={isFetching}
+                            itemLayout='horizontal'
+                            dataSource={ordinalsData?.results}
+                            footer={null}
+                            style={{ color: 'white', width: '100%', textAlign: 'center' }}
+                            renderItem={item => {
+                                return item?.inscriptions?.map((inscription: any) => (
+                                    <Row justify='center'>
+                                        <List.Item
+                                            id={inscription?.id}
+                                            style={{
+                                                color: 'white',
+                                                width: '100%',
+                                                margin: '1.5em auto 0 auto',
+                                                padding: '1.5em'
+                                            }}
+                                        >
+                                            <Col span={18}>
+                                                <Text style={{ width: '100%', color: 'white' }}>
+                                                    {'Inscriptions '}
+                                                </Text>
+                                                <Space />
+                                                <Text style={{ width: '100%', color: 'white' }} copyable>
+                                                    {inscription.id}
+                                                </Text>
+                                            </Col>
+                                            <Col span={6}>
+                                                <Button
+                                                    style={{ color: 'white' }}
+                                                    type='link'
+                                                    onClick={() => {
+                                                        handleInscriptionDetail(inscription);
+                                                    }}
+                                                >
+                                                    <ArrowRightOutlined />
+                                                </Button>
+                                            </Col>
+                                        </List.Item>
+                                    </Row>
+                                ));
 
-                }}
-            />
+                            }}
+                        />
+                    </React.Fragment>
+                ))
+            }
+
+
+            {
+                hasNextPage && !isFetching && (
+                    <Button onClick={onLoadMore} type='primary'>Load More</Button>
+                )
+            }
 
             <Drawer styles={{
                 body: {
@@ -126,7 +162,9 @@ function InscriptionDetail({ inscriptionId, bitcoinAddress }: { inscriptionId: s
 
     const getInscriptionContent = () => {
         if (isImageMIMEType(data?.content_type)) {
-            return <Image src={`https://ord.xverse.app/content/${inscriptionId}`} />
+            return <Image
+                src={`https://ord.xverse.app/content/${inscriptionId}`}
+            />
         }
 
         return <InscriptionRawContent inscriptionId={inscriptionId} />

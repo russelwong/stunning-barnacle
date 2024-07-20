@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import httpClient from '../helpers/http-client';
 
 const KEYS = {
@@ -36,13 +36,22 @@ type OrdinalsQueryResult = {
 };
 
 export function useOrdinals(address: string) {
-    const fetchOrdinals = (): Promise<OrdinalsQueryResult> => httpClient.get(
-        `https://api-3.xverse.app/v1/address/${address}/ordinal-utxo`,
-    ).then((response) => response.data);
+    const fetchOrdinals = ({ pageParam }: { pageParam: number }): Promise<OrdinalsQueryResult> => httpClient.get(
+        `https://api-3.xverse.app/v1/address/${address}/ordinal-utxo?offset=${pageParam}`,
+    ).then((response) => response.data)
 
-    return useQuery({
+    return useInfiniteQuery({
         queryKey: [KEYS.ordinals, address],
         queryFn: fetchOrdinals,
+        initialPageParam: 0,
+        getPreviousPageParam: (firstPage) => 0,
+        getNextPageParam: (lastPage) => {
+            if (lastPage?.offset > lastPage?.total) {
+                return undefined;
+            }
+
+            return lastPage?.offset + 30;
+        },
     });
 };
 
@@ -60,7 +69,7 @@ type InscriptionDetailsQueryResult = {
     output: string;
     offset: number;
     sat_ordinal: number;
-    sat_rarity: 'common' | 'uncommon' | 'rare' | 'very rare' | 'legendary'; 
+    sat_rarity: 'common' | 'uncommon' | 'rare' | 'very rare' | 'legendary';
     sat_coinbase_height: number;
     mime_type: string;
     content_type: string;
@@ -82,12 +91,12 @@ export function useInscriptionsDetails(address: string, inscriptionId: string) {
 };
 
 export function useInscriptionsContent(inscriptionId: string) {
-    const fetchInscriptionContent = (): Promise<OrdinalsQueryResult> => httpClient.get(
+    const fetchInscriptionContent = (): Promise<any> => httpClient.get(
         `https://ord.xverse.app/content/${inscriptionId}`,
     ).then((response) => response.data);
 
     return useQuery({
         queryKey: [KEYS.inscriptionContent, inscriptionId],
-        queryFn: fetchInscriptionContent 
+        queryFn: fetchInscriptionContent
     });
 };
